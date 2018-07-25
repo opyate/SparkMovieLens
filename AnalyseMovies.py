@@ -9,12 +9,13 @@ from pyspark.sql.types import BooleanType
 # - average rating
 # - and obviously the title
 def findMovieById(datastore, movieId):
-    if not checkIfMovieIdExist(datastore,movieId):
+    if not checkIfMovieIdExist(datastore, movieId):
         return "Unknown Movie ID"
     viewCount = findMovieViewCount(datastore, movieId)
     rating = findMovieAverageRating(datastore, movieId)
     title = findMovieTitleById(datastore, movieId)
-    return "ID: " + str(movieId) + "; Title: " + title + "; Average Rating: " + str(rating) + "; View Count: " + str(viewCount)
+    return "ID: " + str(movieId) + "; Title: " + title + "; Average Rating: " + str(rating) + "; View Count: " + str(
+        viewCount)
 
 
 def checkIfMovieIdExist(datastore, movieId):
@@ -73,8 +74,10 @@ def findMoviesByGenre(datastore, genres):
         .collect()
 
     # Pretty print please...
-    if len(toPrint) == 0: toPrint = "No movies match the criteria " + str(genres)
-    else: toPrint.insert(0, "The folowing were found:")
+    if len(toPrint) == 0:
+        toPrint = "No movies match the criteria " + str(genres)
+    else:
+        toPrint.insert(0, "The folowing were found:")
     return toPrint
 
 
@@ -82,7 +85,6 @@ def findMoviesByGenre(datastore, genres):
 # Create a temporary DataFrame with n most watched movies ordered by the number of viewings
 # Join the resulting table with with the movie table, and since the join destroys the order, reorder the resulting table
 def getMostWatchedMovies(datastore, n):
-
     ratings_df = datastore.ratings_df
     movies_df = datastore.movies_df
 

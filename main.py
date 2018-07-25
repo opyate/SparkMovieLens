@@ -3,6 +3,8 @@
 
 import os.path
 from cmd import Cmd
+
+from AnalyseRatings import getHighestRatedMovies, getTopRatedMovies
 from DataStore import DataStore
 from InteractivePrinter import *
 from AnalyseUsers import shortUserInformation
@@ -145,6 +147,53 @@ class Prompt(Cmd):
 
     # ----------------------------------------------------------------------
 
+    def help_buildRecommendationModel(self):
+        print("Builds Movies Recommendation Model")
+
+    def do_buildRecommendationModel(self, args):
+        dataStore.buildRecommendationModel()
+
+    # ----------------------------------------------------------------------
+
+    def help_recommendMovies(self):
+        print("Recommends movies...")
+
+    def do_recommendMovies(self, args):
+        dataStore.recommendMovies()
+
+    # ----------------------------------------------------------------------
+
+    def help_getHighestRatedMovies(self):
+        print("Shows highest rated movies with non deterministic order. Calculated on DataFrame")
+
+    def do_getHighestRatedMovies(self, args):
+        n = 20
+        if args == '':
+            print("Missing [count]. Only printing top 20.")
+        else:
+            try:
+                n = int(args)
+            except ValueError:
+                print("Illegal argument: " + args + " is not a valid number.")
+                return
+        printInteractive(getHighestRatedMovies(dataStore, n))
+
+    # ----------------------------------------------------------------------
+
+    def help_getTopRatedMovies(self):
+        print("Shows highest rated movies with the minimum of 100 ratings. Calculated on RDD")
+
+    def do_getTopRatedMovies(self, args):
+        n = 20
+        if args == '':
+            print("Missing [count]. Only printing top 20.")
+        else:
+            try:
+                n = int(args)
+            except ValueError:
+                print("Illegal argument: " + args + " is not a valid number.")
+                return
+        printInteractive(getTopRatedMovies(dataStore, n))
 
 if __name__ == '__main__':
     prompt = Prompt()
