@@ -2,7 +2,7 @@ from Constants import *
 from AnalyseRatings import findMovieAverageRating, findMovieViewCount
 from pyspark.sql.functions import udf
 from pyspark.sql.types import BooleanType
-
+from pyspark.sql.functions import lower
 
 # Given movieId, check if it exists in the database, find out some useful info such as
 # - the number of viewings,
@@ -103,3 +103,35 @@ def getMostWatchedMovies(datastore, n):
         .map(list) \
         .map(lambda x: "Title: " + x[2] + " ID: " + str(x[0]) + " Views: " + str(x[1])) \
         .collect()
+
+
+def findMovieByTitle(datastore, movieTitle):
+    movieIDs = findMovieIdByTitle(datastore, movieTitle)
+    message = []
+    if len(movieIDs) == 0:
+        return "No movies found"
+    if len(movieIDs) > 1:
+        message.append("Title ambiguous. Printing all possibilities.")
+    for id in movieIDs:
+        message.append(findMovieById(datastore, id))
+    return message
+
+
+def findMovieIdByTitle(datastore, movieTitle):
+    movies_df = datastore.movies_df
+    # The search is not case sensitive
+    # Transform the movie list to lowercase for better searching
+    movies_lowercase_df = movies_df \
+        .select(
+            lower(movies_df[FIELD_MOVIE_TITLE])
+                .alias(FIELD_MOVIE_TITLE),
+            movies_df[FIELD_MOVIE_ID]
+                .alias(FIELD_MOVIE_ID)
+    )
+    # Filter for the movies and drop the field so that only the ids are left
+    movies_lowercase_df = movies_lowercase_df \
+        .filter(movies_lowercase_df[FIELD_MOVIE_TITLE]
+                .rlike(movieTitle.lower())) \
+        .drop(FIELD_MOVIE_TITLE)
+    results = sorted([i[FIELD_MOVIE_ID] for i in movies_lowercase_df.collect()])
+    return results

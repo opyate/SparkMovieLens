@@ -8,12 +8,15 @@ from AnalyseRatings import getHighestRatedMovies, getTopRatedMovies
 from DataStore import DataStore
 from InteractivePrinter import *
 from AnalyseUsers import shortUserInformation
-from AnalyseMovies import findMovieById, findMoviesByGenre, getMostWatchedMovies
+from AnalyseMovies import findMovieById, findMoviesByGenre, getMostWatchedMovies, findMovieByTitle
 from AnalyseGenres import listAllGenres
 
 # Specify paths to the ratings.csv and movies.csv
 ratingsFile = "./ml-latest-small/ratings.csv"
 moviesFile = "./ml-latest-small/movies.csv"
+
+#ratingsFile = "./ml-latest/ratings.csv"
+#moviesFile = "./ml-latest/movies.csv"
 
 #  Exit the program if ratings.csv is missing
 if not os.path.isfile(ratingsFile):
@@ -194,6 +197,23 @@ class Prompt(Cmd):
                 print("Illegal argument: " + args + " is not a valid number.")
                 return
         printInteractive(getTopRatedMovies(dataStore, n))
+
+    # ----------------------------------------------------------------------
+
+    def help_findMovieByTitle(self):
+        print("Usage: searchMovieById [title]")
+        print("")
+        print("Searches for a specific movie by Title and prints the average rating and the viewer count")
+        print("If the Title is ambiguous all results are printed")
+
+    def do_findMovieByTitle(self, args):
+        if args == '':
+            print("Missing Argument")
+            return
+        printInteractive(findMovieByTitle(dataStore, args))
+
+    # ----------------------------------------------------------------------
+
 
 if __name__ == '__main__':
     prompt = Prompt()

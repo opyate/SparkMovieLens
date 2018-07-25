@@ -24,6 +24,8 @@ class DataStore:
         self.ratingsFile = ratingsFile
         self.moviesFile = moviesFile
         self.spark = SparkSession.builder.appName("MovieLens").getOrCreate()
+        self.spark.sparkContext.setLogLevel("ERROR")
+        self.spark.sparkContext.setSystemProperty('spark.executor.memory', '12g')
         print("Started successfully.")
 
     # Loading RDDs/DataFrames
@@ -152,20 +154,22 @@ class DataStore:
     # As previously mentioned in loadGenres() the below will manually trigger caching in Spark as the cache()
     # instruction does not actively cache, it only tells Spark to cache the table after it has been used...
     def cacheData(self):
-        print("Caching data...")
 
-        self.movies_df.cache()
-        self.ratings_df.cache()
-        self.genres_df.cache()
-        self.genre_assignment_df.cache()
+        if self.ratings_df.count() < 10000000:
+            print("Caching data...")
 
-        movie_count = self.movies_df.count()
-        rating_count = self.ratings_df.count()
-        genre_count = self.genres_df.count()
-        genre_assignment_count = self.genre_assignment_df.count()
+            self.movies_df.cache()
+            self.ratings_df.cache()
+            self.genres_df.cache()
+            self.genre_assignment_df.cache()
 
-        total_count = str(movie_count + rating_count + genre_count + genre_assignment_count)
-        print("Cached " + total_count + " data units")
+            movie_count = self.movies_df.count()
+            rating_count = self.ratings_df.count()
+            genre_count = self.genres_df.count()
+            genre_assignment_count = self.genre_assignment_df.count()
+
+            total_count = str(movie_count + rating_count + genre_count + genre_assignment_count)
+            print("Cached " + total_count + " data units")
 
     # ------------------------------------------------------------------------------------------------------------------
     # ------------------------------------------------------------------------------------------------------------------
@@ -249,6 +253,12 @@ class DataStore:
         bestLambda = -1.0
         bestNumIter = -1
 
+        if training_count > 10000000:
+            print("Analysing large data-set. Building only one recommendation model due to insufficient memory ...")
+            ranks = [12]
+            lambdas = [10.0]
+            numIters = [5]
+
         # The train() method of ALS we are going to use is defined as follows:
         # def train(cls, ratings, rank, iterations=5, lambda_=0.01, blocks=-1, nonnegative=False, seed=None):
         #   (...)
@@ -331,7 +341,6 @@ class DataStore:
         self.bestRank = bestRank
         self.bestLambda = bestLambda
         self.bestNumIter = numIter
-        self.recommendationModel = bestModel
         self.recommendationModelBuilt = True
 
     # Provides movie recommendations given a list of new ratings below (myRatedMovies)...
@@ -345,17 +354,17 @@ class DataStore:
         myUserID = 0
         myRatedMovies = [
             (myUserID, 72998, 2),  # Avatar
-            (myUserID, 318, 5),  # Shawshank Redemption
-            (myUserID, 2628, 2),  # Star Wars: Episode I - The Phantom Menace
-            (myUserID, 5378, 5),  # Star Wars: Episode II - Attack of the Clones
+            (myUserID, 98809, 5),  # Hobbit: An Unexpected Journey
+            (myUserID, 2628, 2),   # Star Wars: Episode I - The Phantom Menace
+            (myUserID, 5378, 5),   # Star Wars: Episode II - Attack of the Clones
             (myUserID, 33493, 1),  # Star Wars: Episode III - Revenge of the Sith
-            (myUserID, 260, 2),  # Star Wars: Episode IV - A New Hope
-            (myUserID, 1196, 4),  # Star Wars: Episode V - The Empire Strikes Back
-            (myUserID, 1210, 5),  # Star Wars: Episode VI - Return of the Jedi
-            (myUserID, 1088, 4),  # Dirty Dancing
-            (myUserID, 4993, 3),  # Lord of the Rings: The Fellowship of the Ring
-            (myUserID, 5952, 2),  # Lord of the Rings: The Two Towers
-            (myUserID, 7153, 3)]  # Lord of the Rings: The Return of the King
+            (myUserID, 260, 2),    # Star Wars: Episode IV - A New Hope
+            (myUserID, 1196, 4),   # Star Wars: Episode V - The Empire Strikes Back
+            (myUserID, 1210, 5),   # Star Wars: Episode VI - Return of the Jedi
+            (myUserID, 69844, 4),  # Harry Potter and the Half-Blood Prince
+            (myUserID, 4993, 3),   # Lord of the Rings: The Fellowship of the Ring
+            (myUserID, 5952, 2),   # Lord of the Rings: The Two Towers
+            (myUserID, 7153, 3)]   # Lord of the Rings: The Return of the King
 
         # Create a new RDD (userID, movieID, rating)
         myRatings_rdd = self.spark.sparkContext.parallelize(myRatedMovies)
@@ -368,13 +377,18 @@ class DataStore:
         # movies_df -> movies_rdd
         movies_rdd = self.movies_df.rdd.map(list)
 
-        # Add myRatings_rdd to ratings_rdd to form complete_rating_rdd ...
-        complete_ratings_rdd = ratings_rdd.union(myRatings_rdd)
-
-        # Train the ALS model using the best parameters ...
-        # It will take some time and we will need to repeat that every time a user adds new ratings ...
-        # Ideally we will do this in batches, and not for every single rating that comes into the system for every user
-        newRecommendationModel = ALS.train(complete_ratings_rdd, self.bestRank, self.bestNumIter, self.bestLambda)
+        if ratings_rdd.count() > 10000000:
+            # If the data-set is too big we need to split it in half ... at least when working on laptops
+            training_half_RDD, validation_RDD, test_RDD = ratings_rdd.randomSplit([5, 2, 3], seed=0L)
+            training_RDD = training_half_RDD.union(myRatings_rdd)
+            newRecommendationModel = ALS.train(training_RDD, self.bestRank, self.bestNumIter, self.bestLambda)
+        else:
+            # Add myRatings_rdd to ratings_rdd to form complete_rating_rdd ...
+            complete_ratings_rdd = ratings_rdd.union(myRatings_rdd)
+            # Train the ALS model using the best parameters ...
+            # It will take some time and we will need to repeat that every time a user adds new ratings ...
+            # Ideally we will do this in batches, and not for every single rating that comes into the system ...
+            newRecommendationModel = ALS.train(complete_ratings_rdd, self.bestRank, self.bestNumIter, self.bestLambda)
 
         # Use myRatedMovies to transform the movies_rdd into an RDD with entries that are pairs of the form
         # (myUserID, Movie ID) also leave only movies that we have not rated yet...
@@ -418,9 +432,8 @@ class DataStore:
         # (Predicted Rating, Movie Name, number of ratings), for movies with more than 75 ratings
         ratingsWithNamesRDD = (predictedWithCounts_RDD.join(movies_rdd).map(
             lambda (m, ((PredictedRating, NumRating), MovieName)): (PredictedRating, MovieName, NumRating)).filter(
-            lambda (PredictedRating, MovieName, NumRating): NumRating > 75))
+            lambda (PredictedRating, MovieName, NumRating): NumRating > 100))
 
         predictedHighestRatedMovies = ratingsWithNamesRDD.takeOrdered(20, key=lambda x: -x[0])
 
-        print('My highest rated movies as predicted (for movies with more than 75 reviews):\n%s' % \
-              '\n'.join(map(str, predictedHighestRatedMovies)))
+        print('My highest rated movies as predicted (for movies with more than 100 reviews):\n%s' % '\n'.join(map(str, predictedHighestRatedMovies)))
