@@ -348,7 +348,8 @@ class DataStore:
     def recommendMovies(self):
 
         if not self.recommendationModelBuilt:
-            return "You must build a recommendation model first!"
+            print("You must build a recommendation model first!")
+            return
 
         # The format of each line is (userID, movieID, rating)
         myUserID = 0
