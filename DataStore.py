@@ -257,7 +257,7 @@ class DataStore:
             print("Analysing large data-set. Building only one recommendation model due to insufficient memory ...")
             ranks = [12]
             lambdas = [10.0]
-            numIters = [5]
+            numIters = [10]
 
         # The train() method of ALS we are going to use is defined as follows:
         # def train(cls, ratings, rank, iterations=5, lambda_=0.01, blocks=-1, nonnegative=False, seed=None):
@@ -378,18 +378,12 @@ class DataStore:
         # movies_df -> movies_rdd
         movies_rdd = self.movies_df.rdd.map(list)
 
-        if ratings_rdd.count() > 10000000:
-            # If the data-set is too big we need to split it in half ... at least when working on laptops
-            training_half_RDD, validation_RDD, test_RDD = ratings_rdd.randomSplit([5, 2, 3], seed=0L)
-            training_RDD = training_half_RDD.union(myRatings_rdd)
-            newRecommendationModel = ALS.train(training_RDD, self.bestRank, self.bestNumIter, self.bestLambda)
-        else:
-            # Add myRatings_rdd to ratings_rdd to form complete_rating_rdd ...
-            complete_ratings_rdd = ratings_rdd.union(myRatings_rdd)
-            # Train the ALS model using the best parameters ...
-            # It will take some time and we will need to repeat that every time a user adds new ratings ...
-            # Ideally we will do this in batches, and not for every single rating that comes into the system ...
-            newRecommendationModel = ALS.train(complete_ratings_rdd, self.bestRank, self.bestNumIter, self.bestLambda)
+        # Add myRatings_rdd to ratings_rdd to form complete_rating_rdd ...
+        complete_ratings_rdd = ratings_rdd.union(myRatings_rdd)
+        # Train the ALS model using the best parameters ...
+        # It will take some time and we will need to repeat that every time a user adds new ratings ...
+        # Ideally we will do this in batches, and not for every single rating that comes into the system ...
+        newRecommendationModel = ALS.train(complete_ratings_rdd, self.bestRank, self.bestNumIter, self.bestLambda)
 
         # Use myRatedMovies to transform the movies_rdd into an RDD with entries that are pairs of the form
         # (myUserID, Movie ID) also leave only movies that we have not rated yet...
