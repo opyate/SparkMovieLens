@@ -340,7 +340,7 @@ class DataStore:
         print("The Movie Recommendation Model has been built successfully!")
         self.bestRank = bestRank
         self.bestLambda = bestLambda
-        self.bestNumIter = bestnumIter
+        self.bestNumIter = bestNumIter
         self.recommendationModelBuilt = True
 
     # Provides movie recommendations given a list of new ratings below (myRatedMovies)...
